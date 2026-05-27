@@ -118,7 +118,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="card-body">
       <div id="mat-list"></div>
       <button class="btn btn-s btn-sm" onclick="mostrarSelectorMat()" style="margin-bottom:10px">➕ Agregar material</button>
-      <div class="fg"><label>Material a facturar al cliente</label><input type="text" id="f-mat-facturar" placeholder="Describir material a facturar..."></div>
+      <div class="fg">
+        <label>Material a facturar al cliente</label>
+        <div id="mat-facturar-list" style="margin-bottom:6px">
+          <p style="font-size:12px;color:#999">Agregá materiales arriba para marcarlos como facturables.</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -209,7 +214,7 @@ function mostrarForm(){
   
   document.getElementById('f-falla').value=registro.falla||'';
   document.getElementById('f-reparacion').value=registro.reparacion||'';
-  document.getElementById('f-mat-facturar').value=registro.matFacturar||'';
+  // matFacturar is now structured - handled via materiales.facturar flags
   document.getElementById('f-garantia').value=registro.garantia||'No';
   document.getElementById('f-costo').value=registro.costo||0;
   document.getElementById('f-obs').value=registro.obs||'';
@@ -226,14 +231,44 @@ function goInicio(){
 
 function renderMatList(){
   var el=document.getElementById('mat-list');
-  if(!materiales.length){el.innerHTML='<p style="font-size:12px;color:#999;margin-bottom:8px">Sin materiales cargados.</p>';return;}
+  var elFact=document.getElementById('mat-facturar-list');
+  
+  if(!materiales.length){
+    el.innerHTML='<p style="font-size:12px;color:#999;margin-bottom:8px">Sin materiales cargados.</p>';
+    if(elFact) elFact.innerHTML='<p style="font-size:12px;color:#999">Agregá materiales arriba para marcarlos como facturables.</p>';
+    return;
+  }
+  
   el.innerHTML=materiales.map(function(m,i){
+    var precio=parseFloat(m.costo)||0;
+    var subtotal=precio*m.cant;
     return '<div class="mat-item">'+
       '<div class="desc">'+m.desc+'</div>'+
-      '<div class="qty">x'+m.cant+'</div>'+
+      '<div class="qty">x'+m.cant+(precio?' · $'+Math.round(subtotal).toLocaleString('es-AR'):'')+'</div>'+
       '<button class="mat-del" onclick="quitarMat('+i+')">🗑️</button>'+
     '</div>';
   }).join('');
+
+  // Facturar checklist
+  if(elFact){
+    elFact.innerHTML=materiales.map(function(m,i){
+      var precio=parseFloat(m.costo)||0;
+      var subtotal=precio*m.cant;
+      var checked=m.facturar!==false;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:#f8f8f8;border-radius:6px;margin-bottom:6px">'+
+        '<input type="checkbox" id="fact-'+i+'" '+(checked?'checked':'')+' onchange="toggleFacturar('+i+')" style="width:18px;height:18px;cursor:pointer">'+
+        '<label for="fact-'+i+'" style="flex:1;font-size:13px;cursor:pointer">'+
+          '<strong>'+m.desc+'</strong> x'+m.cant+
+          (precio?'<br><span style="font-size:11px;color:#666">$'+precio.toLocaleString('es-AR')+' c/u = $'+Math.round(subtotal).toLocaleString('es-AR')+'</span>':'')+
+        '</label>'+
+      '</div>';
+    }).join('');
+  }
+}
+
+function toggleFacturar(idx){
+  if(materiales[idx]) materiales[idx].facturar=document.getElementById('fact-'+idx).checked;
+  save();
 }
 
 function quitarMat(i){
@@ -289,7 +324,7 @@ function exportarRegistro(){
     falla:document.getElementById('f-falla').value,
     reparacion:document.getElementById('f-reparacion').value,
     materiales:materiales,
-    matFacturar:document.getElementById('f-mat-facturar').value,
+    matFacturar:materiales.filter(function(m){return m.facturar!==false;}).map(function(m){return {desc:m.desc,cant:m.cant,costo:parseFloat(m.costo)||0,subtotal:(parseFloat(m.costo)||0)*m.cant};}),
     garantia:document.getElementById('f-garantia').value,
     costo:document.getElementById('f-costo').value||'0',
     obs:document.getElementById('f-obs').value,
